@@ -2,6 +2,7 @@ from ethernet_parser import *
 from ip_parser import *
 from tcp_parser import *
 from http_parser import *
+import heapq
 
 
 def create_ipv4_raw_socket():
@@ -11,6 +12,65 @@ def create_ipv4_raw_socket():
     except socket.error as e:
         print(f"Error creating raw socket: {e}")
         return None
+
+
+# This dictionary will hold the packets for each TCP connection in a min-heap
+# The keys will be (source_ip, dest_ip, source_port, dest_port) tuples
+tcp_buffers = {}
+
+# This dictionary will hold the next expected sequence number for each TCP connection
+next_expected_seq = {}
+
+# This dictionary will hold the payload for the connection
+tcp_payload = {}
+
+
+def process_tcp_packet(source_ip, destination_ip, source_port, dest_port, sequence, acknowledgment, flag_fin, window,
+                       checksum, payload):
+    # print("Processing TCP packet")
+    connection_key = (source_ip, destination_ip, source_port, dest_port)
+
+    # Initialize buffer and sequence tracking if new connection
+    if connection_key not in tcp_buffers:
+
+        if not is_http_data(payload):
+            return
+
+        tcp_buffers[connection_key] = []
+        next_expected_seq[connection_key] = sequence + len(payload)
+        tcp_payload[connection_key] = payload
+        print(payload)
+    else:
+        # We have already seen this connection
+        # Check if the packet is the next expected one
+        if sequence == next_expected_seq[connection_key]:
+            # Process the packet
+            tcp_payload[connection_key] += payload
+
+            # Update the expected sequence number
+            next_expected_seq[connection_key] += len(payload)
+
+            # Check the buffer for the next packets
+            while (tcp_buffers[connection_key]
+                   and tcp_buffers[connection_key][0][0] <= next_expected_seq[connection_key]):
+
+                # Handles retransmission
+                if tcp_buffers[connection_key][0][0] < next_expected_seq[connection_key]:
+                    heapq.heappop(tcp_buffers[connection_key])
+                    continue
+
+                _, buffered_payload = heapq.heappop(tcp_buffers[connection_key])
+                tcp_payload[connection_key] += payload
+                next_expected_seq[connection_key] += len(buffered_payload)
+        else:
+            # Add out-of-order packet to the buffer
+            heapq.heappush(tcp_buffers[connection_key], (sequence, payload))
+
+    if flag_fin == 0x1:
+        print(tcp_payload[connection_key])
+        tcp_buffers.pop(connection_key)
+        tcp_payload.pop(connection_key)
+        next_expected_seq.pop(connection_key)
 
 
 def sniff_packets():
@@ -37,13 +97,13 @@ def sniff_packets():
                         payload)
                     # print_tcp_header(source_port, dest_port, sequence, acknowledgment, flag_urg, flag_ack, flag_psh,
                     #                flag_rst, flag_syn, flag_fin, window, checksum, urgent_pointer)
-
-                    if is_http_data(payload):
-                        parse_http_data(payload)
-                    else:
-                        continue
+                    process_tcp_packet(source_ip, destination_ip, source_port, dest_port, sequence, acknowledgment,
+                                       flag_fin, window, checksum,
+                                       payload)
                     # print(f"TCP Payload Data: {payload}")
     except KeyboardInterrupt:
+        for payload in tcp_payload.items():
+            print(payload[1])
         print("Sniffing stopped")
 
 

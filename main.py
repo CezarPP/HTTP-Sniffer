@@ -2,6 +2,7 @@ from ethernet_parser import *
 from ip_parser import *
 from tcp_parser import *
 from http_parser import *
+from ParserProtocol import *
 import heapq
 
 
@@ -21,8 +22,8 @@ tcp_buffers = {}
 # This dictionary will hold the next expected sequence number for each TCP connection
 next_expected_seq = {}
 
-# This dictionary will hold the payload for the connection
-tcp_payload = {}
+# This dictionary will hold the HTTP parser for each connection
+tcp_http_parser = {}
 
 
 def process_tcp_packet(source_ip, destination_ip, source_port, dest_port, sequence, acknowledgment, flag_fin, window,
@@ -38,14 +39,14 @@ def process_tcp_packet(source_ip, destination_ip, source_port, dest_port, sequen
 
         tcp_buffers[connection_key] = []
         next_expected_seq[connection_key] = sequence + len(payload)
-        tcp_payload[connection_key] = payload
-        print(payload)
+        tcp_http_parser[connection_key] = HttpRequestParser(ParserProtocol())
+        tcp_http_parser[connection_key].feed_data(payload)
     else:
         # We have already seen this connection
         # Check if the packet is the next expected one
         if sequence == next_expected_seq[connection_key]:
             # Process the packet
-            tcp_payload[connection_key] += payload
+            tcp_http_parser[connection_key].feed_data(payload)
 
             # Update the expected sequence number
             next_expected_seq[connection_key] += len(payload)
@@ -60,16 +61,17 @@ def process_tcp_packet(source_ip, destination_ip, source_port, dest_port, sequen
                     continue
 
                 _, buffered_payload = heapq.heappop(tcp_buffers[connection_key])
-                tcp_payload[connection_key] += payload
+                tcp_http_parser[connection_key].feed_data(buffered_payload)
                 next_expected_seq[connection_key] += len(buffered_payload)
         else:
             # Add out-of-order packet to the buffer
             heapq.heappush(tcp_buffers[connection_key], (sequence, payload))
 
-    if flag_fin == 0x1:
-        print(tcp_payload[connection_key])
+    if flag_fin == 0x1 or tcp_http_parser[connection_key].is_message_complete:
+        protocol = tcp_http_parser[connection_key].protocol
+        protocol.display()
         tcp_buffers.pop(connection_key)
-        tcp_payload.pop(connection_key)
+        tcp_http_parser.pop(connection_key)
         next_expected_seq.pop(connection_key)
 
 
@@ -102,7 +104,7 @@ def sniff_packets():
                                        payload)
                     # print(f"TCP Payload Data: {payload}")
     except KeyboardInterrupt:
-        for payload in tcp_payload.items():
+        for payload in tcp_http_parser.items():
             print(payload[1])
         print("Sniffing stopped")
 

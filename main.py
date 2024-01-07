@@ -2,7 +2,7 @@ from ethernet_parser import *
 from ip_parser import *
 from tcp_parser import *
 from http_parser import *
-from ParserProtocol import *
+from parser_protocol import *
 import heapq
 
 
@@ -39,7 +39,7 @@ def process_tcp_packet(source_ip, destination_ip, source_port, dest_port, sequen
 
         tcp_buffers[connection_key] = []
         next_expected_seq[connection_key] = sequence + len(payload)
-        tcp_http_parser[connection_key] = HttpRequestParser(ParserProtocol())
+        tcp_http_parser[connection_key] = HttpParser(ParserProtocol())
         tcp_http_parser[connection_key].feed_data(payload)
     else:
         # We have already seen this connection

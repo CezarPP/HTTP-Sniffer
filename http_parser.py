@@ -15,7 +15,7 @@ from splitbuffer import *
 methods = ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS', 'PATCH', 'CONNECT']
 
 
-class HttpRequestParser:
+class HttpParser:
     def __init__(self, protocol):
         self.protocol = protocol
         self.buffer = SplitBuffer()

@@ -21,7 +21,7 @@ class ParserProtocol:
         self.headers = []
 
     def on_response(self, status_code: bytes, status_message: bytes):
-        self.status_code = status_code
+        self.status_code = int(status_code)
         self.status_message = status_message
 
     def on_header(self, name: bytes, value: bytes):

@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
+from tkinter import simpledialog
 
 
 class Gui:
@@ -22,6 +23,17 @@ class Gui:
         self.tree = ttk.Treeview(self.frame, columns=("No.", "Time", "Source", "Destination", "Request Type", "Info"))
 
         self.index = 0
+
+        # Dictionary to store additional information for each item
+        self.additional_info_dict = {}
+
+    def show_additional_info(self):
+        selected_item = self.tree.selection()
+        if selected_item:
+            item_values = self.tree.item(selected_item, "values")
+            item_no = int(item_values[0])
+            body = self.additional_info_dict[item_no]
+            simpledialog.messagebox.showinfo("HTTP Message Body", body if len(body) > 0 else "No Message Body")
 
     def start_gui(self):
         # Define the column headings
@@ -49,11 +61,18 @@ class Gui:
         self.tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
+        # Bind a double click event to the Treeview to show additional info
+        self.tree.bind("<Double-1>", lambda event: self.show_additional_info())
+
         # Start the GUI main loop
         self.app.mainloop()
 
-    def insert_into_list(self, time, source, destination, request_type, info):
+    def insert_into_list(self, time: float, source: str, destination: str, request_type: str, info: str, body: str,
+                         headers: list[tuple[str, str]]):
+        print(f'Type of headers is {type(headers)}')
+        self.index += 1
         self.tree.insert("", "end",
                          values=(
                              self.index, f"{time:.3f}", source, destination,
                              request_type, info))
+        self.additional_info_dict[self.index] = body

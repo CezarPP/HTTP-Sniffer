@@ -67,7 +67,9 @@ def process_tcp_packet(source_ip, destination_ip, source_port, dest_port, sequen
 
         request_type = protocol.http_method.decode("utf-8") if protocol.is_request() else "HTTP Response"
         on_packet_received(time.time() - start_time, connection_key[0], connection_key[1], request_type,
-                           "Some info")
+                           str(protocol.status_code) + " " + protocol.status_message.decode(
+                               "utf-8") if not protocol.is_request() else "HTTP Request",
+                           protocol.body, protocol.headers)
         tcp_buffers.pop(connection_key)
         tcp_http_parser.pop(connection_key)
         next_expected_seq.pop(connection_key)

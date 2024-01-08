@@ -1,4 +1,5 @@
 from .split_buffer import *
+from parser_protocol import *
 
 # Request format:
 # METHOD        path        version
@@ -16,13 +17,13 @@ methods = ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS', 'PATCH', 'CONNECT'
 
 
 class HttpParser:
-    def __init__(self, protocol):
-        self.protocol = protocol
+    def __init__(self, protocol: ParserProtocol):
+        self.protocol: ParserProtocol = protocol
         self.buffer = SplitBuffer()
-        self.done_parsing_start = False
-        self.done_parsing_headers = False
-        self.is_message_complete = False
-        self.expected_body_length = 0
+        self.done_parsing_start: bool = False
+        self.done_parsing_headers: bool = False
+        self.is_message_complete: bool = False
+        self.expected_body_length: int = 0
 
     def feed_data(self, data: bytes):
         self.buffer.feed_data(data)
@@ -75,7 +76,7 @@ class HttpParser:
             self.parse()
 
 
-def is_http_data(data):
+def is_http_data(data: bytes) -> bool:
     try:
         text = data.decode('ascii')
         if any(text.startswith(method) for method in methods) or text.lower().startswith('http/'):

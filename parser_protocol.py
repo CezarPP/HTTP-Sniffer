@@ -1,43 +1,42 @@
 class ParserProtocol:
     def __init__(self):
         # Request
-        self.url = b''
-        self.http_method = b''
-
+        self.url: str = ''
+        self.http_method: str = ''
         # Response
-        self.status_code = 0
-        self.status_message = b''
+        self.status_code: int = 0
+        self.status_message: str = ''
 
         # Common
         self.headers = []
-        self.http_version = b''
+        self.http_version: str = ''
         self.body = b''
 
     # parser callbacks
-    def on_request(self, url: bytes, http_method: bytes):
+    def on_request(self, url: bytes, http_method: bytes) -> None:
         print(f"Received url: {url}")
-        self.http_method = http_method
-        self.url = url
+        self.http_method: str = http_method.decode("utf-8")
+        self.url: str = url.decode("utf-8")
         self.headers = []
 
-    def on_response(self, status_code: bytes, status_message: bytes):
-        self.status_code = int(status_code)
-        self.status_message = status_message
+    def on_response(self, status_code: bytes, status_message: bytes) -> None:
+        self.status_code: int = int(status_code)
+        self.status_message: str = status_message.decode("utf-8")
 
-    def on_header(self, name: bytes, value: bytes):
+    def on_header(self, name: bytes, value: bytes) -> None:
         print(f"Received header: ({name}, {value})")
-        self.headers.append((name, value))
+        self.headers.append((name.decode("utf-8"), value.decode("utf-8")))
 
-    def on_body(self, body: bytes):
+    def on_body(self, body: bytes) -> None:
         self.body += body
         print(f"Received body: {body}")
 
-    def is_request(self):
+    def is_request(self) -> bool:
         if len(self.http_method) >= 3:
             return True
         return False
 
-    def display(self):
+    def display(self) -> None:
         print("Displaying HTTP message...")
         if self.is_request():
             print(f'Request method: {self.http_method}')

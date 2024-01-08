@@ -2,7 +2,7 @@ import struct
 import socket
 
 
-def parse_ipv4_header(raw_data):
+def parse_ipv4_header(raw_data: bytes) -> (int, int, int, int, str, str, bytes):
     # IP header:
     # ++++          ++++                        ++++++++                    16 - 31
     # Version       Header length (IHL)         Type of Service             Total length
@@ -12,12 +12,13 @@ def parse_ipv4_header(raw_data):
     #                                         Destination Address
     ip_header = struct.unpack("!BBHHHBBH4s4s", raw_data[:20])
     version_and_ihl = ip_header[0]
-    version = version_and_ihl >> 4
-    ihl = (version_and_ihl & 0x0F) * 4
-    ttl = ip_header[5]
-    protocol = ip_header[6]
-    source_ip = socket.inet_ntoa(ip_header[8])
-    destination_ip = socket.inet_ntoa(ip_header[9])
+    version: int = version_and_ihl >> 4
+    ihl: int = (version_and_ihl & 0x0F) * 4
+    ttl: int = ip_header[5]
+    protocol: int = ip_header[6]
+    source_ip: str = socket.inet_ntoa(ip_header[8])
+    destination_ip: str = socket.inet_ntoa(ip_header[9])
+
     return version, ihl, ttl, protocol, source_ip, destination_ip, raw_data[ihl:]
 
 

@@ -20,7 +20,7 @@ next_expected_seq = {}
 tcp_http_parser = {}
 
 
-def process_tcp_packet(source_ip, destination_ip, source_port, dest_port, sequence, acknowledgment, flag_fin, window,
+def process_tcp_packet(source_ip, destination_ip, source_port, dest_port, sequence, acknowledgment, flag_fin,
                        checksum, payload, on_packet_received):
     # print("Processing TCP packet")
     connection_key = (source_ip, destination_ip, source_port, dest_port)
@@ -65,10 +65,10 @@ def process_tcp_packet(source_ip, destination_ip, source_port, dest_port, sequen
         protocol: ParserProtocol = tcp_http_parser[connection_key].protocol
         protocol.display()
 
-        request_type = protocol.http_method.decode("utf-8") if protocol.is_request() else "HTTP Response"
+        request_type = protocol.http_method if protocol.is_request() else "HTTP Response"
         on_packet_received(time.time() - start_time, connection_key[0], connection_key[1], request_type,
-                           str(protocol.status_code) + " " + protocol.status_message.decode(
-                               "utf-8") if not protocol.is_request() else "HTTP Request",
+                           str(protocol.status_code) + " " + protocol.status_message
+                           if not protocol.is_request() else "HTTP Request",
                            protocol.body, protocol.headers)
         tcp_buffers.pop(connection_key)
         tcp_http_parser.pop(connection_key)
@@ -104,12 +104,12 @@ def sniff_packets(stop_event, on_packet_received):
                 # print(f"Payload: {payload}")
 
                 if protocol == 6:  # TCP
-                    source_port, dest_port, sequence, acknowledgment, flag_urg, flag_ack, flag_psh, flag_rst, flag_syn, flag_fin, window, checksum, urgent_pointer, payload = parse_tcp_header(
-                        payload)
+                    source_port, dest_port, sequence, acknowledgment, flag_ack, flag_syn, flag_fin, checksum, payload = (
+                        parse_tcp_header(payload))
                     # print_tcp_header(source_port, dest_port, sequence, acknowledgment, flag_urg, flag_ack, flag_psh,
                     #                flag_rst, flag_syn, flag_fin, window, checksum, urgent_pointer)
                     process_tcp_packet(source_ip, destination_ip, source_port, dest_port, sequence, acknowledgment,
-                                       flag_fin, window, checksum,
+                                       flag_fin, checksum,
                                        payload, on_packet_received)
                     # print(f"TCP Payload Data: {payload}")
     except KeyboardInterrupt:

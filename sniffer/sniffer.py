@@ -5,6 +5,9 @@ from parsers.http_parser import *
 from parser_protocol import *
 
 import heapq
+import time
+
+start_time = time.time()
 
 # This dictionary will hold the packets for each TCP connection in a min-heap
 # The keys will be (source_ip, dest_ip, source_port, dest_port) tuples
@@ -18,7 +21,7 @@ tcp_http_parser = {}
 
 
 def process_tcp_packet(source_ip, destination_ip, source_port, dest_port, sequence, acknowledgment, flag_fin, window,
-                       checksum, payload):
+                       checksum, payload, on_packet_received):
     # print("Processing TCP packet")
     connection_key = (source_ip, destination_ip, source_port, dest_port)
 
@@ -59,8 +62,12 @@ def process_tcp_packet(source_ip, destination_ip, source_port, dest_port, sequen
             heapq.heappush(tcp_buffers[connection_key], (sequence, payload))
 
     if flag_fin == 0x1 or tcp_http_parser[connection_key].is_message_complete:
-        protocol = tcp_http_parser[connection_key].protocol
+        protocol: ParserProtocol = tcp_http_parser[connection_key].protocol
         protocol.display()
+
+        request_type = protocol.http_method.decode("utf-8") if protocol.is_request() else "HTTP Response"
+        on_packet_received(time.time() - start_time, connection_key[0], connection_key[1], request_type,
+                           "Some info")
         tcp_buffers.pop(connection_key)
         tcp_http_parser.pop(connection_key)
         next_expected_seq.pop(connection_key)
@@ -75,14 +82,14 @@ def create_ipv4_raw_socket():
         return None
 
 
-def sniff_packets():
+def sniff_packets(stop_event, on_packet_received):
     raw_socket = create_ipv4_raw_socket()
     if raw_socket is None:
         return
 
     print("Starting sniffing...")
     try:
-        while True:
+        while not stop_event.is_set():
             raw_data, _ = raw_socket.recvfrom(65536)
             destination_mac, source_mac, ethernet_type, payload = parse_ethernet_header(raw_data)
 
@@ -101,7 +108,7 @@ def sniff_packets():
                     #                flag_rst, flag_syn, flag_fin, window, checksum, urgent_pointer)
                     process_tcp_packet(source_ip, destination_ip, source_port, dest_port, sequence, acknowledgment,
                                        flag_fin, window, checksum,
-                                       payload)
+                                       payload, on_packet_received)
                     # print(f"TCP Payload Data: {payload}")
     except KeyboardInterrupt:
         for payload in tcp_http_parser.items():

@@ -20,30 +20,29 @@ next_expected_seq = {}
 tcp_http_parser = {}
 
 
-def process_tcp_packet(source_ip, destination_ip, source_port, dest_port, sequence, acknowledgment, flag_fin,
-                       checksum, payload, on_packet_received):
+def process_tcp_packet(ip: IPHeader, tcp: TCPHeader, on_packet_received):
     # print("Processing TCP packet")
-    connection_key = (source_ip, destination_ip, source_port, dest_port)
+    connection_key = (ip.source, ip.dest, tcp.source_port, tcp.dest_port)
 
     # Initialize buffer and sequence tracking if new connection
     if connection_key not in tcp_buffers:
 
-        if not is_http_data(payload):
+        if not is_http_data(tcp.payload):
             return
 
         tcp_buffers[connection_key] = []
-        next_expected_seq[connection_key] = sequence + len(payload)
+        next_expected_seq[connection_key] = tcp.sequence + len(tcp.payload)
         tcp_http_parser[connection_key] = HttpParser(ParserProtocol())
-        tcp_http_parser[connection_key].feed_data(payload)
+        tcp_http_parser[connection_key].feed_data(tcp.payload)
     else:
         # We have already seen this connection
         # Check if the packet is the next expected one
-        if sequence == next_expected_seq[connection_key]:
+        if tcp.sequence == next_expected_seq[connection_key]:
             # Process the packet
-            tcp_http_parser[connection_key].feed_data(payload)
+            tcp_http_parser[connection_key].feed_data(tcp.payload)
 
             # Update the expected sequence number
-            next_expected_seq[connection_key] += len(payload)
+            next_expected_seq[connection_key] += len(tcp.payload)
 
             # Check the buffer for the next packets
             while (tcp_buffers[connection_key]
@@ -59,9 +58,9 @@ def process_tcp_packet(source_ip, destination_ip, source_port, dest_port, sequen
                 next_expected_seq[connection_key] += len(buffered_payload)
         else:
             # Add out-of-order packet to the buffer
-            heapq.heappush(tcp_buffers[connection_key], (sequence, payload))
+            heapq.heappush(tcp_buffers[connection_key], (tcp.sequence, tcp.payload))
 
-    if flag_fin == 0x1 or tcp_http_parser[connection_key].is_message_complete:
+    if tcp.flag_fin == 0x1 or tcp_http_parser[connection_key].is_message_complete:
         protocol: ParserProtocol = tcp_http_parser[connection_key].protocol
         protocol.display()
 
@@ -93,25 +92,16 @@ def sniff_packets(stop_event, on_packet_received):
     try:
         while not stop_event.is_set():
             raw_data, _ = raw_socket.recvfrom(65536)
-            destination_mac, source_mac, ethernet_type, payload = parse_ethernet_header(raw_data)
+            ethernet_header = EthernetHeader(raw_data)
 
-            assert ethernet_type == 0x0800
+            assert ethernet_header.ethernet_type == 0x0800
 
-            if ethernet_type == 0x0800:  # IPv4
-                version, ihl, ttl, protocol, source_ip, destination_ip, payload = parse_ipv4_header(payload)
-                # print_ipv4_header(version, ihl, ttl, protocol, source_ip, destination_ip)
+            if ethernet_header.ethernet_type == 0x0800:  # IPv4
+                ip_header = IPHeader(ethernet_header.payload)
 
-                # print(f"Payload: {payload}")
-
-                if protocol == 6:  # TCP
-                    source_port, dest_port, sequence, acknowledgment, flag_ack, flag_syn, flag_fin, checksum, payload = (
-                        parse_tcp_header(payload))
-                    # print_tcp_header(source_port, dest_port, sequence, acknowledgment, flag_urg, flag_ack, flag_psh,
-                    #                flag_rst, flag_syn, flag_fin, window, checksum, urgent_pointer)
-                    process_tcp_packet(source_ip, destination_ip, source_port, dest_port, sequence, acknowledgment,
-                                       flag_fin, checksum,
-                                       payload, on_packet_received)
-                    # print(f"TCP Payload Data: {payload}")
+                if ip_header.protocol == 6:  # TCP
+                    tcp_header = TCPHeader(ip_header.payload)
+                    process_tcp_packet(ip_header, tcp_header, on_packet_received)
     except KeyboardInterrupt:
         for payload in tcp_http_parser.items():
             print(payload[1])

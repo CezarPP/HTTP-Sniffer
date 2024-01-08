@@ -1,6 +1,5 @@
 import tkinter as tk
 from tkinter import ttk
-from tkinter import simpledialog
 
 
 class Gui:
@@ -27,15 +26,34 @@ class Gui:
         # Dictionary to store additional information for each item
         self.additional_info_dict = {}
 
-    def show_additional_info(self):
+    def display_dialog_box(self, message: str):
+        info_window = tk.Toplevel(self.app)
+        info_window.title("HTTP Headers and Body")
+        info_window.geometry("800x600")
+
+        info_text = tk.Text(info_window, wrap="word")
+        info_text.insert("1.0", message)
+        info_text.config(state="disabled")  # Make the text widget read-only
+
+        scrollbar = ttk.Scrollbar(info_window, command=info_text.yview)
+        info_text.configure(yscrollcommand=scrollbar.set)
+        info_text.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+    def show_additional_info(self) -> None:
         selected_item = self.tree.selection()
         if selected_item:
-            item_values = self.tree.item(selected_item, "values")
+            item_values = self.tree.item(selected_item[0], "values")
             item_no = int(item_values[0])
-            body = self.additional_info_dict[item_no]
-            simpledialog.messagebox.showinfo("HTTP Message Body", body if len(body) > 0 else "No Message Body")
 
-    def start_gui(self):
+            body, headers = self.additional_info_dict[item_no]
+
+            body_string: str = body.decode("utf-8") if len(body) > 0 else ""
+            header_string: str = '\n'.join([f'{key}: {value}' for key, value in headers])
+
+            self.display_dialog_box(header_string + '\n\n' + body_string)
+
+    def start_gui(self) -> None:
         # Define the column headings
         self.tree.heading("#1", text="No.")
         self.tree.heading("#2", text="Time")
@@ -68,11 +86,10 @@ class Gui:
         self.app.mainloop()
 
     def insert_into_list(self, time: float, source: str, destination: str, request_type: str, info: str, body: str,
-                         headers: list[tuple[str, str]]):
-        print(f'Type of headers is {type(headers)}')
+                         headers: list[tuple[str, str]]) -> None:
         self.index += 1
         self.tree.insert("", "end",
                          values=(
                              self.index, f"{time:.3f}", source, destination,
                              request_type, info))
-        self.additional_info_dict[self.index] = body
+        self.additional_info_dict[self.index] = (body, headers)

@@ -13,7 +13,7 @@ from parser_protocol import *
 
 # b"GET /index.html HTTP/1.1\r\nHost: localhost:5000\r\nUser-Agent: curl/7.69.1\r\nAccept: */*\r\n\r\n"
 
-methods = ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS', 'PATCH', 'CONNECT']
+HTTP_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS', 'PATCH', 'CONNECT']
 
 
 class HttpParser:
@@ -62,7 +62,7 @@ class HttpParser:
             http_method = line_parts[0]
             print(f'METHOD IS {http_method.decode("utf-8")}')
 
-            if http_method.decode("utf-8") in methods:
+            if http_method.decode("utf-8") in HTTP_METHODS:
                 # HTTP REQUEST
                 self.protocol.http_version = line_parts[2]
                 self.protocol.on_request(url=line_parts[1], http_method=http_method)
@@ -79,7 +79,7 @@ class HttpParser:
 def is_http_data(data: bytes) -> bool:
     try:
         text = data.decode('ascii')
-        if any(text.startswith(method) for method in methods) or text.lower().startswith('http/'):
+        if any(text.startswith(method) for method in HTTP_METHODS) or text.lower().startswith('http/'):
             return True
     except UnicodeDecodeError:
         # If data can't be decoded to ASCII, it's not HTTP

@@ -17,7 +17,7 @@ def stop_action():
 
 def main():
     gui = Gui(start_action, stop_action)
-    sniffer_thread = threading.Thread(target=sniff_packets, args=(stop_event, gui.insert_into_list))
+    sniffer_thread = threading.Thread(target=sniff_packets, args=(stop_event, gui.add_request))
     sniffer_thread.start()
     gui.start_gui()
 

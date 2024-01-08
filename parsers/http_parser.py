@@ -1,4 +1,4 @@
-from splitbuffer import *
+from .split_buffer import *
 
 # Request format:
 # METHOD        path        version

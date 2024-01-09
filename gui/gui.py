@@ -1,33 +1,66 @@
 import tkinter as tk
 from tkinter import ttk
-from parsers.http_parser import *
 
 
 class Gui:
-    def __init__(self, start_action, stop_action):
+    def __init__(self, stop_action):
         self.app = tk.Tk()
         self.app.title("Sniffer")
 
-        # Start and stop buttons
-        start_button = tk.Button(self.app, text="Start", command=start_action)
-        start_button.pack(pady=10)
-
-        stop_button = tk.Button(self.app, text="Stop", command=stop_action)
-        stop_button.pack(pady=10)
+        # Frame for dropdowns at the top
+        top_frame = tk.Frame(self.app)
+        top_frame.pack(side="top", fill="x", padx=10, pady=10)
 
         # Dropdown for HTTP requests
+        method_frame = tk.Frame(top_frame)
+        method_frame.pack(side="left", padx=10)
+        http_methods_label = tk.Label(method_frame, text="Filter by HTTP Method")
+        http_methods_label.pack()
         self.method_var = tk.StringVar()
         http_methods_dropdown = ['None', 'GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS', 'PATCH', 'CONNECT']
-        self.dropdown = ttk.Combobox(self.app, values=http_methods_dropdown, textvariable=self.method_var)
-        self.dropdown.pack(pady=10)
-        self.dropdown.bind("<<ComboboxSelected>>", self.on_method_select)
+        self.dropdown = ttk.Combobox(method_frame, values=http_methods_dropdown, textvariable=self.method_var)
+        self.dropdown.pack()
+        self.dropdown.bind("<<ComboboxSelected>>", self.on_method_or_ip_select)
 
-        # List of requests
-        self.frame = tk.Frame(self.app)
-        self.frame.pack(padx=10, pady=10)
+        # Dropdown for Source IP filtering
+        source_ip_frame = tk.Frame(top_frame)
+        source_ip_frame.pack(side="left", padx=10)
+        source_ip_label = tk.Label(source_ip_frame, text="Filter by Source IP")
+        source_ip_label.pack()
+        self.source_ip_var = tk.StringVar()
+        self.source_ip_dropdown = ttk.Combobox(source_ip_frame, textvariable=self.source_ip_var)
+        self.source_ip_dropdown.pack()
+        self.source_ip_dropdown.bind("<<ComboboxSelected>>", self.on_method_or_ip_select)
+
+        self.source_ip_dropdown['values'] = ('None',)
+
+        # Dropdown for Destination IP filtering
+        destination_ip_frame = tk.Frame(top_frame)
+        destination_ip_frame.pack(side="left", padx=10)
+        destination_ip_label = tk.Label(destination_ip_frame, text="Filter by Destination IP")
+        destination_ip_label.pack()
+        self.destination_ip_var = tk.StringVar()
+        self.destination_ip_dropdown = ttk.Combobox(destination_ip_frame, textvariable=self.destination_ip_var)
+        self.destination_ip_dropdown.pack()
+        self.destination_ip_dropdown.bind("<<ComboboxSelected>>", self.on_method_or_ip_select)
+
+        self.destination_ip_dropdown['values'] = ('None',)
+
+        # Stop button
+        stop_button = tk.Button(top_frame, text="Stop", command=stop_action)
+        stop_button.pack(side="left", padx=10)
+
+        # Frame for the Treeview (List of Requests) at the bottom
+        bottom_frame = tk.Frame(self.app)
+        bottom_frame.pack(side="bottom", fill="both", expand=True, padx=10, pady=10)
+
+        # Create a Frame for list of requests and its scrollbar
+        self.tree_frame = tk.Frame(bottom_frame)
+        self.tree_frame.pack(side="top", fill="both", expand=True)
 
         # Create a Treeview widget
-        self.tree = ttk.Treeview(self.frame, columns=("No.", "Time", "Source", "Destination", "Request Type", "Info"))
+        self.tree = ttk.Treeview(self.tree_frame,
+                                 columns=("No.", "Time", "Source", "Destination", "Request Type", "Info"))
 
         self.index = 0
 
@@ -36,19 +69,22 @@ class Gui:
         # Dictionary to store the information for each item
         self.request_info = {}
 
-    def on_method_select(self, _):
+    def on_method_or_ip_select(self, _):
+        # Combined filtering logic for method, source IP, and destination IP
         selected_method = self.method_var.get()
+        selected_source_ip = self.source_ip_var.get()
+        selected_destination_ip = self.destination_ip_var.get()
+
+        # Delete all requests from the list
         for index in self.tree.get_children():
             self.tree.delete(index)
 
-        if selected_method == 'None':
-            # Add all requests back
-            for index in range(0, self.index):
-                self.add_request_to_tree(index)
-            return
-
+        # Add back requests conforming to the search criteria
         for req_index in range(0, self.index):
-            if self.request_info[req_index][3] == selected_method:
+            req_info = self.request_info[req_index]
+            if (selected_method in ['', 'None', req_info[3]] and
+                    selected_source_ip in ['', 'None', req_info[1]] and
+                    selected_destination_ip in ['', 'None', req_info[2]]):
                 self.add_request_to_tree(req_index)
 
     def display_dialog_box(self, message: str):
@@ -97,7 +133,7 @@ class Gui:
         self.tree.column("#6", width=200)
 
         # Create a vertical scrollbar
-        scrollbar = ttk.Scrollbar(self.frame, orient="vertical", command=self.tree.yview)
+        scrollbar = ttk.Scrollbar(self.tree_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
 
         # Pack the Treeview and scrollbar
@@ -116,12 +152,28 @@ class Gui:
         self.additional_info_dict[self.index] = (body, headers)
         self.add_request_to_tree(self.index)
         self.index += 1
+        self.update_ip_dropdowns(source, destination)
+
+    def update_ip_dropdowns(self, source: str, destination: str):
+        # Update source IP dropdown
+        if source not in self.source_ip_dropdown['values']:
+            self.source_ip_dropdown['values'] = (*self.source_ip_dropdown['values'], source)
+
+        # Update destination IP dropdown
+        if destination not in self.destination_ip_dropdown['values']:
+            self.destination_ip_dropdown['values'] = (*self.destination_ip_dropdown['values'], destination)
 
     def add_request_to_tree(self, index: int):
         selected_method = self.method_var.get()
-        line_info = self.request_info[index]
-        if not selected_method or selected_method == 'None' or selected_method == line_info[3]:
+        selected_source_ip = self.source_ip_var.get()
+        selected_destination_ip = self.destination_ip_var.get()
+
+        req_info = self.request_info[index]
+        # Add request to tree only if it conforms with the current search criteria
+        if (selected_method in ['', 'None', req_info[3]] and
+                selected_source_ip in ['', 'None', req_info[1]] and
+                selected_destination_ip in ['', 'None', req_info[2]]):
             self.tree.insert("", "end",
                              values=(
-                                 index, f"{line_info[0]:.3f}", line_info[1], line_info[2],
-                                 line_info[3], line_info[4]))
+                                 index, f"{req_info[0]:.3f}", req_info[1], req_info[2],
+                                 req_info[3], req_info[4]))

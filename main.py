@@ -5,10 +5,6 @@ import threading
 stop_event = threading.Event()
 
 
-def start_action():
-    print("Start pressed")
-
-
 def stop_action():
     print("Stop pressed")
     stop_event.set()
@@ -16,7 +12,7 @@ def stop_action():
 
 
 def main():
-    gui = Gui(start_action, stop_action)
+    gui = Gui(stop_action)
     sniffer_thread = threading.Thread(target=sniff_packets, args=(stop_event, gui.add_request))
     sniffer_thread.start()
     gui.start_gui()

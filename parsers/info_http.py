@@ -1,4 +1,4 @@
-class ParserProtocol:
+class InfoHTTP:
     def __init__(self):
         # Request
         self.url: str = ''

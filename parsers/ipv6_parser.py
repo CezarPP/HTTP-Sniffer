@@ -21,7 +21,9 @@ class IPv6Header:
 
         # Payload Length, Next Header, Hop Limit
         self.payload_length = unpacked_data[1]
-        self.next_header = unpacked_data[2]
+
+        # Actually next header, but for consistency it will also be called protocol
+        self.protocol = unpacked_data[2]
         self.hop_limit = unpacked_data[3]
 
         # Source and Destination Addresses
@@ -33,5 +35,5 @@ class IPv6Header:
     def display(self):
         print("IPv6 Header:")
         print(f"Version: {self.version}, Traffic Class: {self.traffic_class}, Flow Label: {self.flow_label}")
-        print(f"Payload Length: {self.payload_length}, Next Header: {self.next_header}, Hop Limit: {self.hop_limit}")
+        print(f"Payload Length: {self.payload_length}, Next Header: {self.protocol}, Hop Limit: {self.hop_limit}")
         print(f"Source Address: {self.source}, Destination Address: {self.dest}")

@@ -13,10 +13,12 @@ def stop_action():
 
 def main():
     gui = Gui(stop_action)
-    sniffer_thread = threading.Thread(target=sniff_packets, args=(stop_event, gui.add_request))
-    sniffer_thread.start()
-    sniffer_thread_ipv6 = threading.Thread(target=sniff_ipv6_packets, args=(stop_event, gui.add_request))
-    sniffer_thread_ipv6.start()
+    ipv4_sniffer = Sniffer(is_ipv6=False)
+    ipv6_sniffer = Sniffer(is_ipv6=True)
+    ipv4_sniffer_thread = threading.Thread(target=ipv4_sniffer.sniff_packets, args=(stop_event, gui.add_request))
+    ipv4_sniffer_thread.start()
+    ipv6_sniffer_thread = threading.Thread(target=ipv6_sniffer.sniff_packets, args=(stop_event, gui.add_request))
+    ipv6_sniffer_thread.start()
 
     gui.start_gui()
 

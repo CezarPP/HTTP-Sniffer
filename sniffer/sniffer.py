@@ -3,76 +3,103 @@ from parsers.ip_parser import *
 from parsers.ipv6_parser import *
 from parsers.tcp_parser import *
 from parsers.http_parser import *
-from parser_protocol import *
+from parsers.info_http import *
 
 import heapq
 import time
 
-start_time = time.time()
 
-# This dictionary will hold the packets for each TCP connection in a min-heap
-# The keys will be (source_ip, dest_ip, source_port, dest_port) tuples
-tcp_buffers = {}
+class Sniffer:
+    def __init__(self, is_ipv6=False):
+        self.start_time = time.time()
 
-# This dictionary will hold the next expected sequence number for each TCP connection
-next_expected_seq = {}
+        # This dictionary will hold the packets for each TCP connection in a min-heap
+        # The keys will be (source_ip, dest_ip, source_port, dest_port) tuples
+        self.tcp_buffers = {}
 
-# This dictionary will hold the HTTP parser for each connection
-tcp_http_parser = {}
+        # This dictionary will hold the next expected sequence number for each TCP connection
+        self.next_expected_seq = {}
 
+        # This dictionary will hold the HTTP parser for each connection
+        self.tcp_http_parser = {}
 
-def process_tcp_packet(ip: IPHeader | IPv6Header, tcp: TCPHeader, on_packet_received):
-    # print("Processing TCP packet")
-    connection_key = (ip.source, ip.dest, tcp.source_port, tcp.dest_port)
+        self.raw_socket = create_ipv6_raw_socket() if is_ipv6 else create_ipv4_raw_socket()
+        if self.raw_socket is None:
+            print("Could not create socket, aborting...")
+            exit(0)
 
-    # Initialize buffer and sequence tracking if new connection
-    if connection_key not in tcp_buffers:
+    def process_tcp_packet(self, ip: IPHeader | IPv6Header, tcp: TCPHeader, on_packet_received):
+        connection_key = (ip.source, ip.dest, tcp.source_port, tcp.dest_port)
 
-        if not is_http_data(tcp.payload):
-            return
+        # Initialize buffer and sequence tracking if new connection
+        if connection_key not in self.tcp_buffers:
 
-        tcp_buffers[connection_key] = []
-        next_expected_seq[connection_key] = tcp.sequence + len(tcp.payload)
-        tcp_http_parser[connection_key] = HttpParser(ParserProtocol())
-        tcp_http_parser[connection_key].feed_data(tcp.payload)
-    else:
-        # We have already seen this connection
-        # Check if the packet is the next expected one
-        if tcp.sequence == next_expected_seq[connection_key]:
-            # Process the packet
-            tcp_http_parser[connection_key].feed_data(tcp.payload)
+            if not is_http_data(tcp.payload):
+                return
 
-            # Update the expected sequence number
-            next_expected_seq[connection_key] += len(tcp.payload)
-
-            # Check the buffer for the next packets
-            while (tcp_buffers[connection_key]
-                   and tcp_buffers[connection_key][0][0] <= next_expected_seq[connection_key]):
-
-                # Handles retransmission
-                if tcp_buffers[connection_key][0][0] < next_expected_seq[connection_key]:
-                    heapq.heappop(tcp_buffers[connection_key])
-                    continue
-
-                _, buffered_payload = heapq.heappop(tcp_buffers[connection_key])
-                tcp_http_parser[connection_key].feed_data(buffered_payload)
-                next_expected_seq[connection_key] += len(buffered_payload)
+            self.tcp_buffers[connection_key] = []
+            self.next_expected_seq[connection_key] = tcp.sequence + len(tcp.payload)
+            self.tcp_http_parser[connection_key] = HttpParser(InfoHTTP())
+            self.tcp_http_parser[connection_key].feed_data(tcp.payload)
         else:
-            # Add out-of-order packet to the buffer
-            heapq.heappush(tcp_buffers[connection_key], (tcp.sequence, tcp.payload))
+            # We have already seen this connection
+            # Check if the packet is the next expected one
+            if tcp.sequence == self.next_expected_seq[connection_key]:
+                # Process the packet
+                self.tcp_http_parser[connection_key].feed_data(tcp.payload)
 
-    if tcp.flag_fin == 0x1 or tcp_http_parser[connection_key].is_message_complete:
-        protocol: ParserProtocol = tcp_http_parser[connection_key].protocol
-        # protocol.display()
+                # Update the expected sequence number
+                self.next_expected_seq[connection_key] += len(tcp.payload)
 
-        request_type = protocol.http_method if protocol.is_request() else "HTTP Response"
-        on_packet_received(time.time() - start_time, connection_key[0], connection_key[1], request_type,
-                           str(protocol.status_code) + " " + protocol.status_message
-                           if not protocol.is_request() else "HTTP Request",
-                           protocol.body, protocol.headers)
-        tcp_buffers.pop(connection_key)
-        tcp_http_parser.pop(connection_key)
-        next_expected_seq.pop(connection_key)
+                # Check the buffer for the next packets
+                while (self.tcp_buffers[connection_key]
+                       and self.tcp_buffers[connection_key][0][0] <= self.next_expected_seq[connection_key]):
+
+                    # Handles retransmission
+                    if self.tcp_buffers[connection_key][0][0] < self.next_expected_seq[connection_key]:
+                        heapq.heappop(self.tcp_buffers[connection_key])
+                        continue
+
+                    _, buffered_payload = heapq.heappop(self.tcp_buffers[connection_key])
+                    self.tcp_http_parser[connection_key].feed_data(buffered_payload)
+                    self.next_expected_seq[connection_key] += len(buffered_payload)
+            else:
+                # Add out-of-order packet to the buffer
+                heapq.heappush(self.tcp_buffers[connection_key], (tcp.sequence, tcp.payload))
+
+        if tcp.flag_fin == 0x1 or self.tcp_http_parser[connection_key].is_message_complete:
+            info_http: InfoHTTP = self.tcp_http_parser[connection_key].info_http
+
+            request_type = info_http.http_method if info_http.is_request() else "HTTP Response"
+            on_packet_received(time.time() - self.start_time, connection_key[0], connection_key[1], request_type,
+                               str(info_http.status_code) + " " + info_http.status_message
+                               if not info_http.is_request() else "HTTP Request",
+                               info_http.body, info_http.headers)
+            self.tcp_buffers.pop(connection_key)
+            self.tcp_http_parser.pop(connection_key)
+            self.next_expected_seq.pop(connection_key)
+
+    def process_ip_packet(self, raw_data: bytes, on_packet_received):
+        ethernet_header = EthernetHeader(raw_data)
+
+        assert ethernet_header.ethernet_type == 0x0800 or ethernet_header.ethernet_type == 0x86DD
+
+        ip_header: IPHeader | IPv6Header = IPHeader(
+            ethernet_header.payload) if ethernet_header.ethernet_type == 0x0800 else IPv6Header(
+            ethernet_header.payload)
+
+        if ip_header.protocol == 6:  # TCP
+            tcp_header = TCPHeader(ip_header.payload)
+            self.process_tcp_packet(ip_header, tcp_header, on_packet_received)
+
+    def sniff_packets(self, stop_event, on_packet_received):
+        print("Starting sniffing...")
+        try:
+            while not stop_event.is_set():
+                raw_data, _ = self.raw_socket.recvfrom(65536)
+                self.process_ip_packet(raw_data, on_packet_received)
+        except KeyboardInterrupt:
+            print("Sniffing stopped")
 
 
 def create_ipv4_raw_socket():
@@ -91,55 +118,3 @@ def create_ipv6_raw_socket():
     except socket.error as e:
         print(f"Error creating IPv6 raw socket: {e}")
         return None
-
-
-def process_ipv4_packet(raw_data: bytes, on_packet_received):
-    ethernet_header = EthernetHeader(raw_data)
-
-    assert ethernet_header.ethernet_type == 0x0800
-
-    ip_header = IPHeader(ethernet_header.payload)
-
-    if ip_header.protocol == 6:  # TCP
-        tcp_header = TCPHeader(ip_header.payload)
-        process_tcp_packet(ip_header, tcp_header, on_packet_received)
-
-
-def process_ipv6_packet(raw_data: bytes, on_packet_received):
-    ethernet_header = EthernetHeader(raw_data)
-
-    assert ethernet_header.ethernet_type == 0x86DD
-
-    ip_header = IPv6Header(ethernet_header.payload)
-
-    if ip_header.next_header == 6:  # TCP
-        tcp_header = TCPHeader(ip_header.payload)
-        process_tcp_packet(ip_header, tcp_header, on_packet_received)
-
-
-def sniff_packets(stop_event, on_packet_received):
-    raw_socket = create_ipv4_raw_socket()
-    if raw_socket is None:
-        return
-
-    print("Starting sniffing ipv4...")
-    try:
-        while not stop_event.is_set():
-            raw_data, _ = raw_socket.recvfrom(65536)
-            process_ipv4_packet(raw_data, on_packet_received)
-    except KeyboardInterrupt:
-        print("Sniffing stopped")
-
-
-def sniff_ipv6_packets(stop_event, on_packet_received):
-    raw_socket = create_ipv6_raw_socket()
-    if raw_socket is None:
-        return
-
-    print("Starting sniffing ipv6...")
-    try:
-        while not stop_event.is_set():
-            raw_data, _ = raw_socket.recvfrom(65536)
-            process_ipv6_packet(raw_data, on_packet_received)
-    except KeyboardInterrupt:
-        print("Sniffing stopped")

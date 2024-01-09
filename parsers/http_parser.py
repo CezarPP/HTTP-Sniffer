@@ -1,5 +1,5 @@
 from .split_buffer import *
-from parser_protocol import *
+from parsers.info_http import *
 
 # Request format:
 # METHOD        path        version
@@ -17,8 +17,8 @@ HTTP_METHODS = [b'GET', b'POST', b'PUT', b'DELETE', b'HEAD', b'OPTIONS', b'PATCH
 
 
 class HttpParser:
-    def __init__(self, protocol: ParserProtocol):
-        self.protocol: ParserProtocol = protocol
+    def __init__(self, info_http: InfoHTTP):
+        self.info_http: InfoHTTP = info_http
         self.buffer = SplitBuffer()
         self.done_parsing_start: bool = False
         self.done_parsing_headers: bool = False
@@ -37,7 +37,7 @@ class HttpParser:
         elif self.expected_body_length and not self.buffer.is_empty():
             data = self.buffer.flush()
             self.expected_body_length -= len(data)
-            self.protocol.on_body(data)
+            self.info_http.on_body(data)
             self.parse()
         elif self.expected_body_length == 0:
             self.is_message_complete = True
@@ -49,7 +49,7 @@ class HttpParser:
                 name, value = line.strip().split(b": ", maxsplit=1)
                 if name.lower() == b"content-length":
                     self.expected_body_length = int(value.decode("utf-8"))
-                self.protocol.on_header(name, value)
+                self.info_http.on_header(name, value)
             else:
                 self.done_parsing_headers = True
             self.parse()
@@ -62,12 +62,12 @@ class HttpParser:
 
             if http_method in HTTP_METHODS:
                 # HTTP REQUEST
-                self.protocol.http_version = line_parts[2]
-                self.protocol.on_request(url=line_parts[1], http_method=http_method)
+                self.info_http.http_version = line_parts[2]
+                self.info_http.on_request(url=line_parts[1], http_method=http_method)
             else:
                 # HTTP RESPONSE
-                self.protocol.http_version = line_parts[0]
-                self.protocol.on_response(status_code=line_parts[1], status_message=b' '.join(line_parts[2:]))
+                self.info_http.http_version = line_parts[0]
+                self.info_http.on_response(status_code=line_parts[1], status_message=b' '.join(line_parts[2:]))
 
             self.done_parsing_start = True
             self.parse()

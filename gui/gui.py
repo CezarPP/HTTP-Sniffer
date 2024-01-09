@@ -109,7 +109,11 @@ class Gui:
 
             body, headers = self.additional_info_dict[item_no]
 
-            body_string: str = body.decode("utf-8") if len(body) > 0 else ""
+            try:
+                body_string: str = body.decode("utf-8") if len(body) > 0 else ''
+            except UnicodeDecodeError:
+                body_string = ''
+
             header_string: str = '\n'.join([f'{key}: {value}' for key, value in headers])
 
             self.display_dialog_box(header_string + '\n\n' + body_string)

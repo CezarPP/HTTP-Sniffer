@@ -1,5 +1,6 @@
 from parsers.ethernet_parser import *
 from parsers.ip_parser import *
+from parsers.ipv6_parser import *
 from parsers.tcp_parser import *
 from parsers.http_parser import *
 from parser_protocol import *
@@ -20,7 +21,7 @@ next_expected_seq = {}
 tcp_http_parser = {}
 
 
-def process_tcp_packet(ip: IPHeader, tcp: TCPHeader, on_packet_received):
+def process_tcp_packet(ip: IPHeader | IPv6Header, tcp: TCPHeader, on_packet_received):
     # print("Processing TCP packet")
     connection_key = (ip.source, ip.dest, tcp.source_port, tcp.dest_port)
 
@@ -62,7 +63,7 @@ def process_tcp_packet(ip: IPHeader, tcp: TCPHeader, on_packet_received):
 
     if tcp.flag_fin == 0x1 or tcp_http_parser[connection_key].is_message_complete:
         protocol: ParserProtocol = tcp_http_parser[connection_key].protocol
-        protocol.display()
+        # protocol.display()
 
         request_type = protocol.http_method if protocol.is_request() else "HTTP Response"
         on_packet_received(time.time() - start_time, connection_key[0], connection_key[1], request_type,
@@ -83,26 +84,62 @@ def create_ipv4_raw_socket():
         return None
 
 
+def create_ipv6_raw_socket():
+    try:
+        # Only capture IPv6
+        return socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(0x86DD))
+    except socket.error as e:
+        print(f"Error creating IPv6 raw socket: {e}")
+        return None
+
+
+def process_ipv4_packet(raw_data: bytes, on_packet_received):
+    ethernet_header = EthernetHeader(raw_data)
+
+    assert ethernet_header.ethernet_type == 0x0800
+
+    ip_header = IPHeader(ethernet_header.payload)
+
+    if ip_header.protocol == 6:  # TCP
+        tcp_header = TCPHeader(ip_header.payload)
+        process_tcp_packet(ip_header, tcp_header, on_packet_received)
+
+
+def process_ipv6_packet(raw_data: bytes, on_packet_received):
+    ethernet_header = EthernetHeader(raw_data)
+
+    assert ethernet_header.ethernet_type == 0x86DD
+
+    ip_header = IPv6Header(ethernet_header.payload)
+
+    if ip_header.next_header == 6:  # TCP
+        tcp_header = TCPHeader(ip_header.payload)
+        process_tcp_packet(ip_header, tcp_header, on_packet_received)
+
+
 def sniff_packets(stop_event, on_packet_received):
     raw_socket = create_ipv4_raw_socket()
     if raw_socket is None:
         return
 
-    print("Starting sniffing...")
+    print("Starting sniffing ipv4...")
     try:
         while not stop_event.is_set():
             raw_data, _ = raw_socket.recvfrom(65536)
-            ethernet_header = EthernetHeader(raw_data)
-
-            assert ethernet_header.ethernet_type == 0x0800
-
-            if ethernet_header.ethernet_type == 0x0800:  # IPv4
-                ip_header = IPHeader(ethernet_header.payload)
-
-                if ip_header.protocol == 6:  # TCP
-                    tcp_header = TCPHeader(ip_header.payload)
-                    process_tcp_packet(ip_header, tcp_header, on_packet_received)
+            process_ipv4_packet(raw_data, on_packet_received)
     except KeyboardInterrupt:
-        for payload in tcp_http_parser.items():
-            print(payload[1])
+        print("Sniffing stopped")
+
+
+def sniff_ipv6_packets(stop_event, on_packet_received):
+    raw_socket = create_ipv6_raw_socket()
+    if raw_socket is None:
+        return
+
+    print("Starting sniffing ipv6...")
+    try:
+        while not stop_event.is_set():
+            raw_data, _ = raw_socket.recvfrom(65536)
+            process_ipv6_packet(raw_data, on_packet_received)
+    except KeyboardInterrupt:
         print("Sniffing stopped")

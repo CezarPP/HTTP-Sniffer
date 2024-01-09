@@ -14,7 +14,6 @@ class ParserProtocol:
 
     # parser callbacks
     def on_request(self, url: bytes, http_method: bytes) -> None:
-        print(f"Received url: {url}")
         self.http_method: str = http_method.decode("utf-8")
         self.url: str = url.decode("utf-8")
         self.headers = []
@@ -24,12 +23,10 @@ class ParserProtocol:
         self.status_message: str = status_message.decode("utf-8")
 
     def on_header(self, name: bytes, value: bytes) -> None:
-        print(f"Received header: ({name}, {value})")
         self.headers.append((name.decode("utf-8"), value.decode("utf-8")))
 
     def on_body(self, body: bytes) -> None:
         self.body += body
-        print(f"Received body: {body}")
 
     def is_request(self) -> bool:
         if len(self.http_method) >= 3:

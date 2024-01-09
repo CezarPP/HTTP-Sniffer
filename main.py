@@ -15,6 +15,9 @@ def main():
     gui = Gui(stop_action)
     sniffer_thread = threading.Thread(target=sniff_packets, args=(stop_event, gui.add_request))
     sniffer_thread.start()
+    sniffer_thread_ipv6 = threading.Thread(target=sniff_ipv6_packets, args=(stop_event, gui.add_request))
+    sniffer_thread_ipv6.start()
+
     gui.start_gui()
 
 

@@ -1,5 +1,5 @@
-from sniffer.sniffer import *
-from gui.gui import *
+from sniffer.sniffer import Sniffer
+from gui.gui import Gui
 import threading
 
 stop_event = threading.Event()

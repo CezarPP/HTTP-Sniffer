@@ -1,12 +1,13 @@
-from parsers.ethernet_parser import *
-from parsers.ip_parser import *
-from parsers.ipv6_parser import *
-from parsers.tcp_parser import *
-from parsers.http_parser import *
-from parsers.info_http import *
-
+import socket
 import heapq
 import time
+
+from parsers.ethernet_parser import EthernetHeader
+from parsers.ip_parser import IPHeader
+from parsers.ipv6_parser import IPv6Header
+from parsers.tcp_parser import TCPHeader
+from parsers.http_parser import HttpParser, is_http_data
+from parsers.info_http import InfoHTTP
 
 
 class Sniffer:
@@ -31,7 +32,7 @@ class Sniffer:
     def process_tcp_packet(self, ip: IPHeader | IPv6Header, tcp: TCPHeader, on_packet_received):
         connection_key = (ip.source, ip.dest, tcp.source_port, tcp.dest_port)
 
-        # Initialize buffer and sequence tracking if new connection
+        # Initialize buffer and sequence tracking for a new connection
         if connection_key not in self.tcp_buffers:
 
             if not is_http_data(tcp.payload):
@@ -52,8 +53,8 @@ class Sniffer:
                 self.next_expected_seq[connection_key] += len(tcp.payload)
 
                 # Check the buffer for the next packets
-                while (self.tcp_buffers[connection_key]
-                       and self.tcp_buffers[connection_key][0][0] <= self.next_expected_seq[connection_key]):
+                while (self.tcp_buffers[connection_key] and
+                       self.tcp_buffers[connection_key][0][0] <= self.next_expected_seq[connection_key]):
 
                     # Handles retransmission
                     if self.tcp_buffers[connection_key][0][0] < self.next_expected_seq[connection_key]:

@@ -1,5 +1,5 @@
-from .split_buffer import *
-from parsers.info_http import *
+from .split_buffer import SplitBuffer
+from parsers.info_http import InfoHTTP
 
 # Request format:
 # METHOD        path        version

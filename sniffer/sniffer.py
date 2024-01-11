@@ -11,6 +11,31 @@ from parsers.info_http import InfoHTTP
 
 
 class Sniffer:
+    """
+    A class for sniffing and processing HTTP network requests and responses.
+
+    Attributes:
+        start_time (float): The time when the sniffer started.
+        tcp_buffers (dict): Buffers to hold packets for each TCP connection, using min-heaps.
+        next_expected_seq (dict): Dictionary to track the next expected sequence number for each TCP connection.
+        tcp_http_parser (dict): Dictionary holding an HTTP parser for each TCP connection.
+        raw_socket (socket.socket): The raw socket used for capturing packets.
+
+    Methods:
+        process_tcp_packet(ip, tcp, on_packet_received): Processes a single TCP packet.
+        process_ip_packet(raw_data, on_packet_received): Processes a single IP packet.
+        sniff_packets(stop_event, on_packet_received): Main loop for sniffing packets.
+
+    Usage:
+        - Initialize the Sniffer class, specifying whether to capture IPv4 or IPv6 traffic.
+        - Call `sniff_packets` to start the packet sniffing process.
+        - Processed packet data is provided to a callback function for further handling.
+
+    Note:
+        This sniffer is designed to work with both IPv4 and IPv6 packets and focuses on TCP and HTTP protocols.
+        It handles out-of-order TCP packets and reassembles HTTP messages.
+    """
+
     def __init__(self, is_ipv6=False):
         self.start_time = time.time()
 

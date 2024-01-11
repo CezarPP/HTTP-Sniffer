@@ -1,8 +1,41 @@
 import tkinter as tk
 from tkinter import ttk
+import threading
 
 
 class Gui:
+    """
+    A class for creating and managing the GUI of a network packet sniffer application.
+
+    Attributes:
+        app (tk.Tk): The main window of the application.
+        method_var (tk.StringVar): Variable to store the selected HTTP method for filtering.
+        source_ip_var (tk.StringVar): Variable to store the selected source IP for filtering.
+        destination_ip_var (tk.StringVar): Variable to store the selected destination IP for filtering.
+        tree (ttk.Treeview): Widget to display the list of network requests.
+        lock (threading.Lock): A lock to ensure thread-safe operations on shared resources.
+        index (int): Counter to keep track of the number of requests.
+        additional_info_dict (dict): Stores additional information (headers and body) for each request.
+        request_info (dict): Stores basic information for each request.
+
+    Methods:
+        on_method_or_ip_select(_): Handles the selection of filters (HTTP method, source IP, destination IP).
+        display_dialog_box(message: str): Displays a dialog box with detailed information about a request.
+        show_additional_info(): Displays additional information for a selected request in the GUI.
+        start_gui(): Configures and starts the main GUI loop.
+        add_request(time, source, destination, request_type, info, body, headers): Adds a new request to the GUI.
+        update_ip_dropdowns(source: str, destination: str): Updates the source and destination IP dropdowns.
+        add_request_to_tree(index: int): Adds a request to the tree view based on the current filter criteria.
+
+    Usage:
+        - Used to create and manage the graphical interface for a network packet sniffer.
+        - Provides interactive elements to filter and display network requests and their details.
+        - Can handle real-time data updates from network sniffing threads.
+
+    Note:
+        The GUI is built using the Tkinter library and is designed to display network traffic.
+    """
+
     def __init__(self, stop_action):
         self.app = tk.Tk()
         self.app.title("Sniffer")
@@ -61,6 +94,9 @@ class Gui:
         # Create a Treeview widget
         self.tree = ttk.Treeview(self.tree_frame,
                                  columns=("No.", "Time", "Source", "Destination", "Request Type", "Info"))
+
+        # Initialize the lock object
+        self.lock = threading.Lock()
 
         self.index = 0
 
@@ -152,11 +188,13 @@ class Gui:
 
     def add_request(self, time: float, source: str, destination: str, request_type: str, info: str, body: str,
                     headers: list[tuple[str, str]]) -> None:
-        self.request_info[self.index] = (time, source, destination, request_type, info)
-        self.additional_info_dict[self.index] = (body, headers)
-        self.add_request_to_tree(self.index)
-        self.index += 1
-        self.update_ip_dropdowns(source, destination)
+        # Lock is needed since this could be called by the IPv4 & IPv6 threads at the same time
+        with self.lock:
+            self.request_info[self.index] = (time, source, destination, request_type, info)
+            self.additional_info_dict[self.index] = (body, headers)
+            self.add_request_to_tree(self.index)
+            self.index += 1
+            self.update_ip_dropdowns(source, destination)
 
     def update_ip_dropdowns(self, source: str, destination: str):
         # Update source IP dropdown

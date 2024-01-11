@@ -11,12 +11,38 @@ from parsers.info_http import InfoHTTP
 # If Content-Length header is present, we can expect a body after the empty line
 # Also, current line might not be complete, because we sequentially receive data
 
-# b"GET /index.html HTTP/1.1\r\nHost: localhost:5000\r\nUser-Agent: curl/7.69.1\r\nAccept: */*\r\n\r\n"
+# b"GET /index.html HTTP/1.1\r\n
+# Host: localhost:5000\r\n
+# User-Agent: curl/7.69.1\r\n
+# Accept: */*\r\n\r\n"
 
 HTTP_METHODS = [b'GET', b'POST', b'PUT', b'DELETE', b'HEAD', b'OPTIONS', b'PATCH', b'TRACE', b'CONNECT']
 
 
 class HttpParser:
+    """
+    A parser for HTTP request and response messages.
+
+    Attributes:
+        info_http (InfoHTTP): An object to handle parsed information.
+        buffer (SplitBuffer): Buffer to manage the incoming byte stream.
+        done_parsing_start (bool): Indicates if the start line of HTTP message is parsed.
+        done_parsing_headers (bool): Indicates if the headers of the HTTP message are parsed.
+        is_message_complete (bool): Indicates if the entire HTTP message is parsed.
+        expected_body_length (int): The expected length of the body content in bytes.
+
+    Methods:
+        feed_data(data: bytes): Feeds incoming data to the buffer and triggers parsing.
+        parse(): Main parsing function, orchestrates the parsing of different parts of the HTTP message.
+        parse_header(): Parses HTTP headers.
+        parse_line_start(): Parses the start line of an HTTP message.
+
+    Usage:
+        - Initialize an instance with an InfoHTTP object.
+        - Continuously feed byte data to the parser using `feed_data`.
+        - The parser will sequentially parse the HTTP message, updating the InfoHTTP object.
+    """
+
     def __init__(self, info_http: InfoHTTP):
         self.info_http: InfoHTTP = info_http
         self.buffer = SplitBuffer()
@@ -74,5 +100,17 @@ class HttpParser:
 
 
 def is_http_data(data: bytes) -> bool:
+    """
+    Determines if the given data is the start of an HTTP message.
+
+    Args:
+        data (bytes): The data to be checked.
+
+    Returns:
+        bool: True if the data starts with an HTTP method or an HTTP version, False otherwise.
+
+    Usage:
+        - Call with a byte stream to check if it's likely to be the start of an HTTP message.
+    """
     return (any(data.startswith(method) for method in HTTP_METHODS)
             or data.lower().startswith(b'http'))

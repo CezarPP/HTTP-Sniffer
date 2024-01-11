@@ -2,16 +2,46 @@ import struct
 
 
 class TCPHeader:
+    """
+    A class for parsing and displaying the TCP header of a network packet.
+
+    Attributes:
+        source_port (int): The source port number.
+        dest_port (int): The destination port number.
+        sequence (int): The sequence number of the first data byte in this segment.
+        acknowledgment (int): If the ACK flag is set, this field contains the value of the next sequence number.
+        offset (int): The size of the TCP header in bytes.
+        flag_ack (int): The acknowledgment flag.
+        flag_syn (int): The synchronize sequence numbers flag.
+        flag_fin (int): The finish flag indicating the sender has finished sending data.
+        window (int): The size of the received window.
+        checksum (int): The checksum used for error-checking of the header and data.
+        payload (bytes): The raw payload data following the TCP header.
+
+    Methods:
+        display(): Prints the parsed TCP header information.
+
+    Usage:
+        - Initialize with raw byte data representing a TCP packet.
+        - Parses the TCP header and extracts fields such as source port, destination port, sequence number, etc.
+        - Provides a method to display the parsed information in a human-readable format.
+
+    Note:
+        The TCP header is crucial for the control and management of TCP segments in network communication.
+        It contains information for data transmission control, error checking, and data flow management:
+
+                2 bytes                    2 bytes
+             Source Port             Destination port
+                       Sequence number
+                       Ack Number
+        ++++     +++  +++++++++
+        offset           flags        window size
+              checksum                urgent ptr
+                         options
+                          data
+    """
+
     def __init__(self, raw_data: bytes):
-        #    2 bytes                    2 bytes
-        #      Source Port             Destination port
-        #                Sequence number
-        #                Ack Number
-        # ++++     +++  +++++++++
-        # offset           flags        window size
-        #       checksum                urgent ptr
-        #                  options
-        #                   data
         (self.source_port, self.dest_port, self.sequence, self.acknowledgment, offset_reserved_flags) = struct.unpack(
             '!HHLLH', raw_data[:14])
         self.offset: int = (offset_reserved_flags >> 12) * 4

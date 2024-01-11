@@ -1,4 +1,29 @@
 class InfoHTTP:
+    """
+    A class to store and manage HTTP request and response data.
+
+    Attributes:
+        url (str): The URL in the HTTP request.
+        http_method (str): The HTTP method used in the request.
+        status_code (int): The status code from the HTTP response.
+        status_message (str): The status message associated with the response status code.
+        headers (list): A list of tuples containing headers and their values.
+        http_version (str): The HTTP version used.
+        body (bytes): The body of the HTTP message.
+
+    Methods:
+        on_request(url: bytes, http_method: bytes): Processes the request line from an HTTP request.
+        on_response(status_code: bytes, status_message: bytes): Processes the status line from an HTTP response.
+        on_header(name: bytes, value: bytes): Adds a header to the headers list.
+        on_body(body: bytes): Appends the given bytes to the message body.
+        is_request(): Determines if the parsed message is an HTTP request.
+        display(): Prints the parsed HTTP message.
+
+    Usage:
+        - Used by the HttpParser to store and manipulate parsed HTTP request and response data.
+        - The parser callbacks update the attributes of this object as it parses an HTTP message.
+    """
+
     def __init__(self):
         # Request
         self.url: str = ''
